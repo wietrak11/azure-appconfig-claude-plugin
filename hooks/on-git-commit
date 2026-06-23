@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+input=$(cat)
+
+command=$(echo "$input" | jq -r '.tool_input.command // empty' 2>/dev/null || true)
+
+if ! echo "$command" | grep -qE '^\s*git\s+commit'; then
+  exit 0
+fi
+
+staged_files=$(git diff --cached --name-only 2>/dev/null | grep -E '(^|/)application[^/]*\.yml$' || true)
+
+if [ -z "$staged_files" ]; then
+  exit 0
+fi
+
+# Allow if migration file was already generated
+migration_file=$(find . -maxdepth 3 -name "az-appconfig-*.json" 2>/dev/null | head -1 || true)
+if [ -n "$migration_file" ]; then
+  exit 0
+fi
+
+staged_list=$(echo "$staged_files" | tr '\n' ' ' | sed 's/ $//')
+jq -n \
+  --arg files "$staged_list" \
+  '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: ("Spring Boot config files staged: " + $files + ". Run /azure-appconfig-migration:migrate to generate the Azure App Configuration import file first, then commit again.")}}'

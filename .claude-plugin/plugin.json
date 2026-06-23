@@ -5,6 +5,8 @@
   "description": "Generates Azure App Configuration JSON import files from Spring Boot YAML property changes.",
   "author": {
     "name": "Mateusz Wietrak",
-    "email": "mateusz.wietrak@contractor.qiagen.com"
-  }
+    "email": "wietrak11@gmail.com"
+  },
+  "homepage": "https://github.com/wietrak11/azure-appconfig-claude-plugin",
+  "repository": "https://github.com/wietrak11/azure-appconfig-claude-plugin"
 }

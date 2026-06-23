@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "wietrak11-plugins",
+  "description": "Claude Code plugins for Spring Boot and Azure development workflows",
+  "owner": {
+    "name": "Mateusz Wietrak",
+    "email": "wietrak11@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "azure-appconfig-migration",
+      "source": {
+        "source": "github",
+        "repo": "wietrak11/azure-appconfig-claude-plugin"
+      },
+      "description": "Generates Azure App Configuration JSON import files from Spring Boot YAML property changes.",
+      "homepage": "https://github.com/wietrak11/azure-appconfig-claude-plugin"
+    }
+  ]
+}
