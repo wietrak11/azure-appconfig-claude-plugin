@@ -1,0 +1,10 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "azure-appconfig-migration",
+  "version": "1.0.0",
+  "description": "Generates Azure App Configuration JSON import files from Spring Boot YAML property changes.",
+  "author": {
+    "name": "Mateusz Wietrak",
+    "email": "mateusz.wietrak@contractor.qiagen.com"
+  }
+}
