@@ -3,24 +3,23 @@ set -euo pipefail
 
 input=$(cat)
 
-command=$(echo "$input" | jq -r '.tool_input.command // empty' 2>/dev/null || true)
-
-if ! echo "$command" | grep -qE 'git\s+commit'; then
+# Check if this is a git commit command (search raw JSON for the string)
+if ! printf '%s' "$input" | grep -q 'git commit'; then
   exit 0
 fi
 
 # Files already staged before this command runs
 already_staged=$(git diff --cached --name-only 2>/dev/null | grep -E '(^|/)application[^/]*\.yml$' || true)
 
-# Files being added in the same command as the commit (e.g. "git add app.yml && git commit")
+# Files being added in the same command (e.g. "git add app.yml && git commit")
 cmd_added=""
-if echo "$command" | grep -qE 'git\s+add'; then
-  if echo "$command" | grep -qE 'git\s+add\s+(-A|--all|\.)'; then
-    # "git add -A" or "git add ." — check all unstaged tracked changes
+if printf '%s' "$input" | grep -q 'git add'; then
+  if printf '%s' "$input" | grep -qE 'git add (-A|--all|\.)'; then
+    # "git add -A" or "git add ." - check all unstaged tracked changes
     cmd_added=$(git diff --name-only 2>/dev/null | grep -E '(^|/)application[^/]*\.yml$' || true)
   else
-    # Specific files listed — extract any application yml tokens from the command
-    cmd_added=$(echo "$command" | grep -oE '[^[:space:]]+application[^[:space:]]*\.yml' \
+    # Specific files listed - extract application yml tokens from the raw JSON
+    cmd_added=$(printf '%s' "$input" | grep -oE '[^[:space:]"]+application[^[:space:]"\\]*\.yml' \
       | grep -E '(^|[/\\])application[^/\\]*\.yml$' || true)
   fi
 fi
@@ -37,7 +36,7 @@ if [ -n "$migration_file" ]; then
   exit 0
 fi
 
-staged_list=$(echo "$config_files" | tr '\n' ' ' | sed 's/ $//')
-jq -n \
-  --arg files "$staged_list" \
-  '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: ("Spring Boot config files staged: " + $files + ". Run /azure-appconfig-migration:migrate to generate the Azure App Configuration import file first, then commit again.")}}'
+staged_list=$(printf '%s\n' "$config_files" | tr '\n' ' ' | sed 's/ $//' | tr '\\' '/')
+cat <<EOF
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Spring Boot config files staged: $staged_list. Run /azure-appconfig-migration:migrate to generate the Azure App Configuration import file first, then commit again."}}
+EOF

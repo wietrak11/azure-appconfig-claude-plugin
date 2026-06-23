@@ -3,12 +3,15 @@ set -euo pipefail
 
 input=$(cat)
 
-file_path=$(echo "$input" | jq -r '.tool_input.file_path // empty' 2>/dev/null || true)
+# Extract file_path from JSON using only grep/sed (no jq dependency)
+# file_path values are filesystem paths and never contain quotes, so this is safe
+file_path=$(printf '%s' "$input" | grep -o '"file_path"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -o '[^"]*"$' | tr -d '"' || true)
 
-if ! echo "$file_path" | grep -qE 'application[^/]*\.yml$'; then
+if [ -z "$file_path" ] || ! printf '%s' "$file_path" | grep -qE 'application[^/\\]*\.yml$'; then
   exit 0
 fi
 
-jq -n \
-  --arg path "$file_path" \
-  '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: ("You modified \($path). If you added or removed Spring Boot properties that belong in Azure App Configuration, run /azure-appconfig-migration:migrate before committing.")}}'
+filename=$(basename "$file_path")
+cat <<EOF
+{"systemMessage":"Modified $filename - run /azure-appconfig-migration:migrate to sync properties to Azure App Configuration.","hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"You modified a Spring Boot application config file. Remind the user to run /azure-appconfig-migration:migrate before committing."}}
+EOF
