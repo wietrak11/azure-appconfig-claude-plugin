@@ -7,7 +7,17 @@ description: Use when a Spring Boot feature is complete and new or removed prope
 
 Generates a JSON import file for Azure App Configuration based on changed Spring Boot YAML properties. Works with any Spring Boot project that uses `spring-cloud-azure-appconfiguration-config`.
 
-## Step 1: Find Changed Config Files
+## Step 1: Read App Name from pom.xml
+
+Find the project's own `artifactId` in `pom.xml` — the one that is NOT a parent or dependency. It is typically the second `<artifactId>` in the file, immediately after `<parent>`.
+
+```bash
+grep "<artifactId>" pom.xml | head -5
+```
+
+Use this value as `<app-name>` in all generated keys.
+
+## Step 2: Find Changed Config Files
 
 Run:
 ```bash
@@ -19,12 +29,7 @@ If the branch has no changes relative to master yet, try:
 git diff HEAD~1 -- $(find . -path "*/src/main/resources/application*.yml" | tr '\n' ' ')
 ```
 
-If multiple files have changes, ask the user which one to use. If no changes are found, tell the user and stop.
-
-## Step 2: Ask for Label
-
-Ask:
-> "What Azure App Configuration label should be applied to these properties? (e.g. `production`, `staging`, `online`)"
+If multiple files have changes, process **each file separately** — one output JSON per file. If no changes are found, tell the user and stop.
 
 ## Step 3: Parse the Diff
 
@@ -40,7 +45,7 @@ From the diff output:
 | `parent:\n  child: value` | `parent.child` | `"value"` |
 | `feature:\n  enabled: true` | `feature.enabled` | `"true"` |
 | `size: 50MB` | `size` | `"50MB"` |
-| `list:\n  - a\n  - b` | `list` | `"[\"a\",\"b\"]"` with `content_type: application/json` |
+| `list:\n  - a\n  - b` | `list` | `"[\"a\",\"b\"]"` |
 
 Rules:
 - All values are strings (Azure App Config stores everything as strings)
@@ -50,46 +55,47 @@ Rules:
 
 ## Step 4: Generate the Import JSON
 
-Create file: `az-appconfig-<feature-name>-<YYYY-MM-DD>.json` at the project root.
+Determine the output filename from the source yml filename (use today's date as `YYYY-MM-DD`):
 
-Use the Azure App Configuration `appconfig` format:
+| Source file | Output file |
+|---|---|
+| `application.yml` | `propertiesMigration<YYYY-MM-DD>.json` |
+| `application-local.yml` | `propertiesMigration<YYYY-MM-DD>-local.json` |
+| `application-<env>.yml` | `propertiesMigration<YYYY-MM-DD>-<env>.json` |
+
+Create the file at the project root.
+
+The format is a flat JSON object. Each key is `/<app-name>/<flattened.property.path>`, the value is the property value as a string:
 
 ```json
-[
-  {
-    "key": "feature.property-name",
-    "value": "property-value",
-    "label": "production",
-    "content_type": null,
-    "tags": {}
-  }
-]
+{
+  "/<app-name>/parent.child": "value",
+  "/<app-name>/feature.enabled": "true"
+}
 ```
-
-Set `content_type` to `"application/json"` for list values, `null` for everything else.
 
 ## Step 5: Handle Removals
 
-Removed properties cannot go in the import file — list the delete commands separately:
+Removed properties cannot go in the import file. List each one so the user can delete them manually via the Azure Portal:
 
 ```
-# Properties to DELETE from Azure App Configuration:
-az appconfig kv delete --name <app-config-name> --key "parent.removed-key" --label "<label>" --yes
+# Properties to DELETE from Azure App Configuration (delete via Azure Portal):
+/<app-name>/parent.removed-key
+/<app-name>/another.removed-key
 ```
 
 ## Step 6: Print Summary
 
 Output:
-1. Path to the generated JSON file
-2. Import command:
-   ```bash
-   az appconfig kv import --name <app-config-name> --source file --path <file> --format appconfig --yes
-   ```
-3. Delete commands for any removed properties
+1. Path to each generated JSON file
+2. Reminder: **"Import the file via the Azure Portal — Configuration Explorer → Import."**
+3. List of keys to delete manually (if any removed properties)
 4. Warnings for any secrets skipped (Key Vault recommendation)
 5. Any values flagged for manual review (complex YAML, anchors, multiline strings)
 
 ## Example
+
+`artifactId` in `pom.xml`: `unified-log-parser-backend`
 
 Diff in `application-local.yml`:
 ```diff
@@ -101,37 +107,16 @@ Diff in `application-local.yml`:
 +    - csv
 ```
 
-Generated `az-appconfig-reporting-2026-06-23.json`:
+Generated `propertiesMigration2026-06-24-local.json`:
 ```json
-[
-  {
-    "key": "reporting.enabled",
-    "value": "true",
-    "label": "production",
-    "content_type": null,
-    "tags": {}
-  },
-  {
-    "key": "reporting.max-report-size",
-    "value": "50MB",
-    "label": "production",
-    "content_type": null,
-    "tags": {}
-  },
-  {
-    "key": "reporting.allowed-formats",
-    "value": "[\"pdf\",\"csv\"]",
-    "label": "production",
-    "content_type": "application/json",
-    "tags": {}
-  }
-]
+{
+  "/unified-log-parser-backend/reporting.enabled": "true",
+  "/unified-log-parser-backend/reporting.max-report-size": "50MB",
+  "/unified-log-parser-backend/reporting.allowed-formats": "[\"pdf\",\"csv\"]"
+}
 ```
 
-Import command:
-```bash
-az appconfig kv import --name my-app-config --source file --path az-appconfig-reporting-2026-06-23.json --format appconfig --yes
-```
+Import via the Azure Portal — Configuration Explorer → Import — using `propertiesMigration2026-06-24-local.json`.
 
 ## Edge Cases
 

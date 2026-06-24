@@ -31,7 +31,7 @@ if [ -z "$config_files" ]; then
 fi
 
 # Allow if migration file was already generated
-migration_file=$(find . -maxdepth 3 -name "az-appconfig-*.json" 2>/dev/null | head -1 || true)
+migration_file=$(find . -maxdepth 3 -name "propertiesMigration*.json" 2>/dev/null | head -1 || true)
 if [ -n "$migration_file" ]; then
   exit 0
 fi
